@@ -14,6 +14,9 @@ body{display:flex;justify-content:center;align-items:center;font-family:monospac
 .c{width:14px;height:14px;background:radial-gradient(circle at 30% 30%,#ffe066,#ffd700,#b8860b);border-radius:50%}
 #lv{gap:3px}
 .h{color:#ff4757;font-size:16px}
+#ps{position:absolute;top:10px;right:10px;width:36px;height:36px;border-radius:8px;background:rgba(255,215,0,0.15);border:2px solid rgba(255,215,0,0.3);color:#ffd700;font-size:18px;cursor:pointer;display:none}
+#pa{position:absolute;display:none;flex-direction:column;align-items:center;gap:16px;color:#fff;background:rgba(10,10,18,0.95);padding:30px;border-radius:16px;border:2px solid #ffd700}
+#pa h2{color:#ffd700;font-size:22px}
 #m,#ov{position:absolute;display:flex;flex-direction:column;align-items:center;gap:16px;color:#fff;text-align:center}
 #m h1{font-size:26px;background:linear-gradient(90deg,#ffd700,#ff6b6b,#ffd700);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 #m p{color:#888;font-size:11px}
@@ -31,6 +34,8 @@ body{display:flex;justify-content:center;align-items:center;font-family:monospac
 <div id="ui"><div><div class="c"></div><span id="cn">0</span></div><div id="sc">000000</div><div id="lv"></div></div>
 <div id="m"><h1>🚃 RAIL RUSH 3D 🚃</h1><p>Swipe/arrows: ↑Jump ↓Slide ←→Move</p><button id="st">TAP TO PLAY</button></div>
 <div id="ov"><h2>💥 BUSTED!</h2><div id="fn">0</div><div id="hsc">Best: 0</div><button class="b" id="rt" style="width:auto;padding:10px 28px;border-radius:16px">RETRY</button></div>
+<button id="ps">⏸</button>
+<div id="pa"><h2>⏸ PAUSED</h2><button class="b" id="rs" style="width:auto;padding:10px 28px;border-radius:16px">RESUME</button><button class="b" id="qt" style="width:auto;padding:10px 28px;border-radius:16px;background:rgba(255,70,70,0.2);border-color:rgba(255,70,70,0.4);color:#ff4757">QUIT</button></div>
 <div class="ct"><button class="b" id="bl">◀</button><button class="b" id="bu">▲</button><button class="b" id="bd">▼</button><button class="b" id="br">▶</button></div>
 <script>
 const C=document.getElementById('g'),X=C.getContext('2d'),W=400,H=650;
@@ -43,7 +48,7 @@ const pj=(x,y,z)=>{const s=D/(z+D);return{x:W/2+x*s,y:HY+(GY-HY-y)*s,s}};
 let st='menu',sc=0,cn=0,bs=+localStorage.rb3||0,lv=2,pl={l:1,tl:1,lt:1,y:0,vy:0,sl:0,x:0};
 let sp=10,ob=[],co=[],pt=[],rz=0,tk=0,nx=50,sh=0,ky={},tc={sx:0,sy:0,x:0,y:0,on:0};
 
-onkeydown=e=>{ky[e.key]=1;e.preventDefault()};onkeyup=e=>ky[e.key]=0;
+onkeydown=e=>{ky[e.key]=1;if(e.key==='Escape'||e.key==='p'){st==='play'?pause():st==='pause'?resume():0}e.preventDefault()};onkeyup=e=>ky[e.key]=0;
 const inp=d=>{if(st!=='play')return;if(d==='l'&&pl.tl>0){pl.tl--;pl.lt=0}if(d==='r'&&pl.tl<2){pl.tl++;pl.lt=0}if(d==='u'&&pl.y<=0)pl.vy=14;if(d==='d'&&!pl.sl)pl.sl=25};
 
 C.ontouchstart=e=>{const t=e.touches[0];tc.sx=tc.x=t.clientX;tc.sy=tc.y=t.clientY;tc.on=1;if(st==='menu')go()};
@@ -53,14 +58,19 @@ C.ontouchend=()=>{if(!tc.on)return;const dx=tc.x-tc.sx,dy=tc.y-tc.sy;if(Math.abs
 document.getElementById('bl').onclick=()=>inp('l');document.getElementById('br').onclick=()=>inp('r');
 document.getElementById('bu').onclick=()=>inp('u');document.getElementById('bd').onclick=()=>inp('d');
 document.getElementById('st').onclick=go;document.getElementById('rt').onclick=go;
+document.getElementById('ps').onclick=pause;document.getElementById('rs').onclick=resume;
+document.getElementById('qt').onclick=()=>{st='menu';document.getElementById('pa').style.display='none';document.getElementById('ps').style.display='none';document.getElementById('m').style.display='flex'};
 
 function go(){st='play';sc=cn=0;lv=2;sp=10;pl={l:1,tl:1,lt:1,y:0,vy:0,sl:0,x:0};ob=[];co=[];pt=[];tk=nx=50;
-document.getElementById('m').style.display='none';document.getElementById('ov').style.display='none';ui()}
+document.getElementById('m').style.display='none';document.getElementById('ov').style.display='none';document.getElementById('pa').style.display='none';document.getElementById('ps').style.display='block';ui()}
+
+function pause(){if(st==='play'){st='pause';document.getElementById('pa').style.display='flex';document.getElementById('ps').style.display='none'}}
+function resume(){if(st==='pause'){st='play';document.getElementById('pa').style.display='none';document.getElementById('ps').style.display='block'}}
 
 function gg(){st='over';if(sc>bs){bs=sc;localStorage.rb3=bs}
 document.getElementById('fn').textContent=sc.toString().padStart(6,'0');
 document.getElementById('hsc').textContent='Best: '+bs.toString().padStart(6,'0');
-document.getElementById('ov').style.display='flex'}
+document.getElementById('ov').style.display='flex';document.getElementById('ps').style.display='none'}
 
 const ui=()=>{document.getElementById('sc').textContent=sc.toString().padStart(6,'0');document.getElementById('cn').textContent=cn;document.getElementById('lv').innerHTML='<span class="h">♥</span>'.repeat(lv)};
 
