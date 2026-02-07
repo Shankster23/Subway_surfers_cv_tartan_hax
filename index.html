@@ -740,17 +740,10 @@
       }
     };
 
-    // Auto-start CV on load (before game starts)
+    // Game Init on Load
     window.addEventListener('load', () => {
       showHelp(0); // Auto-open help
       document.getElementById('hscDisplay').textContent = 'BEST: ' + bs.toString().padStart(6, '0');
-      if (!cvEnabled) {
-        cvEnabled = true;
-        cvToggle.textContent = '📷 CV: ON';
-        cvToggle.style.background = 'rgba(39,174,96,0.3)';
-        cvToggle.style.borderColor = 'rgba(39,174,96,0.5)';
-        initCV();
-      }
     });
 
     onkeydown = e => { ky[e.key] = 1; if (e.key === 'Escape' || e.key === 'p') { st === 'play' ? pause() : st === 'pause' ? resume() : 0 } if (e.key === 'c' && cvEnabled && cvReady) startCalibration(); e.preventDefault() };
@@ -833,7 +826,8 @@
       for (let i = ob.length - 1; i >= 0; i--) {
         const o = ob[i]; o.z -= sp; if (o.z < -50) { ob.splice(i, 1); continue }
         if (o.z < 60 && o.z > -20 && Math.abs(LN[o.l] - pl.x) < 35) {
-          if (o.t === 'w' && (pl.sl > 0 || pl.y > 25)) continue; if (o.t === 'b' && pl.y > 50) continue;
+          if (o.t === 'w' && (pl.sl > 0 || pl.y > 25)) continue;
+          if (o.t === 'b' && (pl.sl > 0 || pl.y > 50)) continue; // Allow sliding under red fence
           sh = 10; ap(pl.x, 40, 30, '#ff4757', 15); lv--; ui(); ob.splice(i, 1); if (lv <= 0) return gg()
         }
       }
