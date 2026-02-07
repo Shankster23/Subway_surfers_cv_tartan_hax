@@ -173,10 +173,21 @@
 
     #m {
       background: transparent;
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: transparent;
       border: none;
       box-shadow: none;
       padding: 0;
-      top: 40%;
+      color: #fff;
+      text-align: center;
+      z-index: 150;
+      min-width: 280px;
     }
 
     #m h1 {
@@ -193,6 +204,17 @@
       font-size: 12px;
       margin-bottom: 20px;
       line-height: 1.5;
+    }
+
+    #help h2 {
+      margin-bottom: 8px;
+    }
+
+    #helpText {
+      margin-top: 0;
+      margin-bottom: 20px;
+      line-height: 1.5;
+      color: #eee;
     }
 
     #st {
