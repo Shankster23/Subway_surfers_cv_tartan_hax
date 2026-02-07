@@ -743,6 +743,7 @@
     // Auto-start CV on load (before game starts)
     window.addEventListener('load', () => {
       showHelp(0); // Auto-open help
+      document.getElementById('hscDisplay').textContent = 'BEST: ' + bs.toString().padStart(6, '0');
       if (!cvEnabled) {
         cvEnabled = true;
         cvToggle.textContent = '📷 CV: ON';
@@ -769,8 +770,8 @@
     // Help/instructions
     const helpSteps = [
       '⚠️ IMPORTANT: Computer Vision requires Wi-Fi! If it hangs, REFRESH the page.',
-      'CONTROLS: Swipe the screen OR use the Arrow Buttons below.',
-      'BODY CONTROL: Enable CV to control with your body: stand Left/Middle/Right.',
+      'CONTROLS: Swipe Left/Right to move, Up to Jump, Down to Crouch.',
+      'CV TOGGLE: Click "CV: ON/OFF" (Top Right) to enable/disable camera & body control.',
       'ACTIONS: Arms Up = Jump. Crouch = Slide. Press C to recalibrate.'
     ];
     let helpIdx = 0;
@@ -800,10 +801,18 @@
       st = 'over'; if (sc > bs) { bs = sc; localStorage.rb3 = bs }
       document.getElementById('fn').textContent = sc.toString().padStart(6, '0');
       document.getElementById('hsc').textContent = 'Best: ' + bs.toString().padStart(6, '0');
+      document.getElementById('hscDisplay').textContent = 'BEST: ' + bs.toString().padStart(6, '0'); // Update top bar best
       document.getElementById('ov').style.display = 'flex'; document.getElementById('ps').style.display = 'none'
     }
 
-    const ui = () => { document.getElementById('sc').textContent = sc.toString().padStart(6, '0'); document.getElementById('cn').textContent = cn; document.getElementById('lv').innerHTML = '<span class="h">♥</span>'.repeat(lv) };
+    const ui = () => {
+      document.getElementById('sc').textContent = sc.toString().padStart(6, '0');
+      document.getElementById('cn').textContent = cn;
+      document.getElementById('lv').innerHTML = '<span class="heartIcon">♥</span>'.repeat(lv);
+      // Update best score live if current score exceeds it
+      const currentBest = Math.max(sc, bs);
+      document.getElementById('hscDisplay').textContent = 'BEST: ' + currentBest.toString().padStart(6, '0');
+    };
 
     function spn() {
       const t = ['t', 'b', 'w'][Math.random() * 3 | 0], l = Math.random() * 3 | 0, z = 900, cl = ['#e74c3c', '#3498db', '#27ae60', '#9b59b6', '#f39c12'];
@@ -814,6 +823,7 @@
     const ap = (x, y, z, c, n) => { for (let i = 0; i < n; i++)pt.push({ x, y, z, vx: (Math.random() - .5) * 6, vy: Math.random() * 8, vz: (Math.random() - .5) * 4, lf: 25, c }) };
 
     function upd() {
+      if (sh > 0) sh--; // Move shake decay here so it runs even if game over
       if (st !== 'play') return; tk++; sc += Math.ceil(sp / 2); if (tk % 120 === 0) sp = Math.min(12, sp + .15);
       if (ky.ArrowLeft || ky.a) { inp('l'); ky.ArrowLeft = ky.a = 0 } if (ky.ArrowRight || ky.d) { inp('r'); ky.ArrowRight = ky.d = 0 }
       if (ky.ArrowUp || ky.w || ky[' ']) inp('u'); if (ky.ArrowDown || ky.s) inp('d');
@@ -824,7 +834,7 @@
         const o = ob[i]; o.z -= sp; if (o.z < -50) { ob.splice(i, 1); continue }
         if (o.z < 60 && o.z > -20 && Math.abs(LN[o.l] - pl.x) < 35) {
           if (o.t === 'w' && (pl.sl > 0 || pl.y > 25)) continue; if (o.t === 'b' && pl.y > 50) continue;
-          sh = 15; ap(pl.x, 40, 30, '#ff4757', 15); lv--; ui(); ob.splice(i, 1); if (lv <= 0) return gg()
+          sh = 10; ap(pl.x, 40, 30, '#ff4757', 15); lv--; ui(); ob.splice(i, 1); if (lv <= 0) return gg()
         }
       }
       for (let i = co.length - 1; i >= 0; i--) {
@@ -832,7 +842,6 @@
         if (!c.g && c.z < 50 && c.z > -10 && Math.abs(LN[c.l] - pl.x) < 40 && pl.y < 60) { c.g = 1; cn++; sc += 20; ap(LN[c.l], 30, c.z, '#ffd700', 8); ui() }
       }
       for (let i = pt.length - 1; i >= 0; i--) { const p = pt[i]; p.x += p.vx; p.y += p.vy; p.z -= sp * .5; p.vy -= .4; if (--p.lf <= 0) pt.splice(i, 1) }
-      if (sh > 0) sh--
     }
 
     function drw() {
