@@ -349,34 +349,87 @@ module renderer
   assign go_text_on = txt_active & txt_font_bit;
 
   // ============================================================
-  //  Track / Lane Geometry
+  //  3D Perspective Computation
   // ============================================================
-  localparam [9:0] TRACK_LEFT  = 10'd80;
-  localparam [9:0] TRACK_RIGHT = 10'd720;
+  // Vanishing point: objects converge to (VP_X, VP_Y) at the horizon.
+  // Max depth = 599 - 88 = 511 ≈ 512 = 2^9, so all scaling uses shifts.
+  localparam [9:0] VP_X = 10'd400;   // Vanishing point X (center)
+  localparam [9:0] VP_Y = 10'd88;    // Vanishing point Y (horizon line)
 
-  logic in_track;
-  assign in_track = (col >= TRACK_LEFT) && (col <= TRACK_RIGHT);
+  // Depth at current scanline (0 at horizon, ~511 at screen bottom)
+  logic [9:0] p_depth;
+  logic in_perspective;
+  assign in_perspective = (row >= VP_Y);
+  assign p_depth = in_perspective ? (row - VP_Y) : 10'd0;
 
-  // Rail lines (thin vertical lines along each lane edge)
-  logic is_rail;
-  assign is_rail = in_track && (
-    (col >= 10'd102 && col <= 10'd103) || (col >= 10'd184 && col <= 10'd185) ||
-    (col >= 10'd358 && col <= 10'd359) || (col >= 10'd440 && col <= 10'd441) ||
-    (col >= 10'd614 && col <= 10'd615) || (col >= 10'd696 && col <= 10'd697));
+  // Track half-width: 320/512 * depth ≈ (d>>1) + (d>>3)
+  logic [9:0] p_track_hw;
+  assign p_track_hw = (p_depth >> 1) + (p_depth >> 3);
 
-  // Lane dividers (dashed vertical lines between lanes)
-  logic is_divider;
-  logic [4:0] div_pattern;
-  assign div_pattern = row[4:0];
-  assign is_divider = in_track && (div_pattern < 5'd16) && (
-    (col >= 10'd270 && col <= 10'd273) ||
-    (col >= 10'd526 && col <= 10'd529));
+  // Track edge positions (converge to VP_X at horizon)
+  logic [9:0] p_track_left, p_track_right;
+  assign p_track_left  = VP_X - p_track_hw;
+  assign p_track_right = VP_X + p_track_hw;
 
-  // Cross-ties (horizontal lines scrolling with game)
-  logic is_tie;
-  logic [4:0] tie_pattern;
-  assign tie_pattern = row[4:0] + scroll_offset[4:0];
-  assign is_tie = in_track && (tie_pattern < 5'd3);
+  // Is pixel inside the perspective track area?
+  logic in_p_track;
+  assign in_p_track = in_perspective && (col >= p_track_left) && (col <= p_track_right);
+
+  // Lane divider positions: ±128/512 * depth = ±(d>>2)
+  logic [9:0] p_div01, p_div12;
+  assign p_div01 = VP_X - (p_depth >> 2);
+  assign p_div12 = VP_X + (p_depth >> 2);
+
+  // Track edge highlight lines (2px at each border)
+  logic is_p_edge;
+  assign is_p_edge = in_perspective && p_track_hw > 10'd8 && (
+    (col >= p_track_left && col < p_track_left + 10'd2) ||
+    (col > p_track_right - 10'd2 && col <= p_track_right));
+
+  // Lane divider lines (2px wide, dashed via depth[4:0] pattern)
+  logic is_p_divider;
+  logic [4:0] p_div_dash;
+  assign p_div_dash = p_depth[4:0];
+  assign is_p_divider = in_p_track && (p_div_dash < 5'd16) && p_depth > 10'd8 && (
+    (col >= p_div01 && col <= p_div01 + 10'd1) ||
+    (col >= p_div12 && col <= p_div12 + 10'd1));
+
+  // Cross-ties (horizontal stripes on track that scroll with movement)
+  logic is_p_tie;
+  logic [4:0] p_tie_pat;
+  assign p_tie_pat = p_depth[4:0] + scroll_offset[4:0];
+  assign is_p_tie = in_p_track && (p_tie_pat < 5'd3);
+
+  // ---- Depth-based colors (lighter at bottom, darker at horizon) ----
+  logic [7:0] ground_r, ground_g, ground_b;
+  assign ground_r = 8'h10 + {1'b0, p_depth[8:2]};   // 16..143
+  assign ground_g = 8'h10 + {1'b0, p_depth[8:2]};
+  assign ground_b = 8'h25 + {1'b0, p_depth[8:2]};   // 37..164
+
+  logic [7:0] edge_r, edge_g, edge_b;
+  assign edge_r = 8'h50 + {1'b0, p_depth[8:2]};     // 80..207
+  assign edge_g = 8'h50 + {1'b0, p_depth[8:2]};
+  assign edge_b = 8'h65 + {1'b0, p_depth[8:2]};     // 101..228
+
+  logic [7:0] div_clr_r, div_clr_g, div_clr_b;
+  assign div_clr_r = 8'h35 + {1'b0, p_depth[8:2]};  // 53..180
+  assign div_clr_g = 8'h35 + {1'b0, p_depth[8:2]};
+  assign div_clr_b = 8'h48 + {1'b0, p_depth[8:2]};  // 72..199
+
+  logic [7:0] tie_r, tie_g, tie_b;
+  assign tie_r = ground_r + 8'h15;                    // 37..164
+  assign tie_g = ground_g + 8'h15;
+  assign tie_b = ground_b + 8'h10;                    // 47..180
+
+  logic [7:0] wall_r, wall_g, wall_b;
+  assign wall_r = 8'h08 + {2'b0, p_depth[8:3]};     // 8..71
+  assign wall_g = 8'h08 + {2'b0, p_depth[8:3]};
+  assign wall_b = 8'h12 + {2'b0, p_depth[8:3]};     // 18..81
+
+  logic [7:0] sky_r, sky_g, sky_b;
+  assign sky_r = 8'h05 + {2'b0, row[6:1]};           // 5..48
+  assign sky_g = 8'h08 + {2'b0, row[6:1]};           // 8..51
+  assign sky_b = 8'h25 + {1'b0, row[6:0]};           // 37..124
 
   // ---- HUD: Lives indicator ----
   logic is_hud;
@@ -410,26 +463,38 @@ module renderer
     endcase
   end
 
-  // ---- Skyline (simple city silhouette) ----
-  logic is_skyline;
-  logic [9:0] building_h;
+  // ---- Building silhouettes above horizon ----
+  logic [9:0] bld_height;
   always_comb begin
-    building_h = 10'd40 + {5'd0, col[4:0]};
-    if (col[6:5] == 2'b01) building_h = building_h + 10'd20;
-    if (col[7:6] == 2'b10) building_h = building_h + 10'd15;
-    is_skyline = (row >= 10'd160) && (row < 10'd160 + building_h) &&
-                 (col[3:0] != 4'd0);
+    case (col[6:4])
+      3'd0: bld_height = 10'd18;
+      3'd1: bld_height = 10'd38;
+      3'd2: bld_height = 10'd25;
+      3'd3: bld_height = 10'd48;
+      3'd4: bld_height = 10'd20;
+      3'd5: bld_height = 10'd42;
+      3'd6: bld_height = 10'd30;
+      3'd7: bld_height = 10'd52;
+    endcase
   end
 
+  logic is_building, is_window;
+  assign is_building = !in_perspective &&
+                       (col < 10'd320 || col > 10'd480) &&
+                       (row >= VP_Y - bld_height) &&
+                       (col[3:0] != 4'd0);
+  assign is_window = is_building &&
+                     (col[2:1] == 2'b01) && (row[2:1] == 2'b01);
+
   // ============================================================
-  //  Main Color Mux (priority-based)
+  //  Main Color Mux (priority-based, 3D perspective)
   // ============================================================
   always_comb begin
     if (blank) begin
       red = 8'h00; green = 8'h00; blue = 8'h00;
 
     end else if (game_over) begin
-      // Game Over screen: dark background with text
+      // Game Over screen: dark background with text (unchanged)
       if (go_text_on) begin
         case (txt_line)
           2'd1:    begin red=8'hFF; green=8'h55; blue=8'h55; end // GAME OVER: red
@@ -448,11 +513,10 @@ module renderer
       red = 8'h15; green = 8'h15; blue = 8'h28;
 
     end else if (player_active && player_visible) begin
-      if (player_head_active && !is_sliding) begin
-        red = PH_R; green = PH_G; blue = PH_B;
-      end else begin
-        red = PB_R; green = PB_G; blue = PB_B;
-      end
+      if (player_head_active && !is_sliding)
+        begin red = PH_R; green = PH_G; blue = PH_B; end
+      else
+        begin red = PB_R; green = PB_G; blue = PB_B; end
 
     end else if (obstacle_pixel && game_active) begin
       red = obs_r; green = obs_g; blue = obs_b;
@@ -460,23 +524,30 @@ module renderer
     end else if (coin_pixel && game_active) begin
       red = CN_R; green = CN_G; blue = CN_B;
 
-    end else if (is_rail) begin
-      red = RL_R; green = RL_G; blue = RL_B;
-
-    end else if (is_tie && game_active) begin
-      red = CT_R; green = CT_G; blue = CT_B;
-
-    end else if (is_divider) begin
-      red = RL_R; green = RL_G; blue = RL_B;
-
-    end else if (in_track) begin
-      red = TK_R; green = TK_G; blue = TK_B;
-
-    end else if (is_skyline && row > 10'd150) begin
-      red = 8'h15; green = 8'h15; blue = 8'h28;
+    end else if (in_perspective) begin
+      // Below horizon: 3D track with converging perspective
+      if (is_p_edge) begin
+        red = edge_r; green = edge_g; blue = edge_b;
+      end else if (is_p_divider) begin
+        red = div_clr_r; green = div_clr_g; blue = div_clr_b;
+      end else if (is_p_tie && game_active) begin
+        red = tie_r; green = tie_g; blue = tie_b;
+      end else if (in_p_track) begin
+        red = ground_r; green = ground_g; blue = ground_b;
+      end else begin
+        // Side walls
+        red = wall_r; green = wall_g; blue = wall_b;
+      end
 
     end else begin
-      red = BG_R; green = BG_G; blue = BG_B;
+      // Above horizon: sky with building silhouettes
+      if (is_window) begin
+        red = 8'h55; green = 8'h50; blue = 8'h18; // Lit window (warm yellow)
+      end else if (is_building) begin
+        red = 8'h0F; green = 8'h0F; blue = 8'h1A; // Dark building
+      end else begin
+        red = sky_r; green = sky_g; blue = sky_b;   // Sky gradient
+      end
     end
   end
 

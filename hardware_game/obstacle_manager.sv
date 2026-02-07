@@ -193,24 +193,64 @@ module obstacle_manager
     end
   end
 
-  // ---- Pixel Rendering (combinational) ----
-  logic [9:0] obs_cx [4];
-  logic [9:0] obs_h  [4];
+  // ---- 3D Perspective for Pixel Rendering ----
+  // Vanishing point matches renderer (VP_X=400, VP_Y=88).
+  // Lane centres, widths AND heights scale with depth.
+  localparam [9:0] VP_X = 10'd400;
+  localparam [9:0] VP_Y = 10'd88;
+
+  logic [9:0] p_depth;
+  assign p_depth = (row >= VP_Y) ? (row - VP_Y) : 10'd0;
+
+  // Perspective obstacle half-width: ≈52/512 * depth → ~40px at player y
+  logic [9:0] p_obs_hw;
+  assign p_obs_hw = (p_depth >> 4) + (p_depth >> 5) + (p_depth >> 7);
+
+  // Perspective lane centre at current scanline
+  function automatic [9:0] persp_lane_x(input [1:0] l, input [9:0] d);
+    case (l)
+      2'd0:    persp_lane_x = VP_X - (d >> 1);
+      2'd1:    persp_lane_x = VP_X;
+      2'd2:    persp_lane_x = VP_X + (d >> 1);
+      default: persp_lane_x = VP_X;
+    endcase
+  endfunction
+
+  // Perspective height: scale base height by depth at obstacle's y position.
+  // Base heights are chosen so the result ≈ original height at player depth (d≈392).
+  //   BARRIER: base≈40  → (d>>4)+(d>>6)  → 30 at d=392
+  //   WIRE:    base≈20  → (d>>5)+(d>>7)  → 15 at d=392
+  //   TRAIN:   base≈132 → (d>>2)+(d>>7)  → 101 at d=392
+  function automatic [9:0] persp_height(input [1:0] t, input [9:0] d);
+    case (t)
+      BARRIER: persp_height = (d >> 4) + (d >> 6);
+      WIRE:    persp_height = (d >> 5) + (d >> 7);
+      TRAIN:   persp_height = (d >> 2) + (d >> 7);
+      default: persp_height = (d >> 4) + (d >> 6);
+    endcase
+  endfunction
+
+  // ---- Pixel Rendering (combinational, perspective-adjusted) ----
+  logic [9:0] obs_cx    [4];
+  logic [9:0] obs_depth [4];
+  logic [9:0] obs_ph    [4];   // perspective height
   logic [3:0] pixel_hit;
 
   always_comb begin
     for (int i = 0; i < NUM_OBS; i++) begin
-      obs_cx[i] = get_lane_x(obs_lane[i]);
-      obs_h[i]  = get_height(obs_type[i]);
+      obs_cx[i]    = persp_lane_x(obs_lane[i], p_depth);
+      obs_depth[i] = (obs_y[i] >= VP_Y) ? (obs_y[i] - VP_Y) : 10'd0;
+      obs_ph[i]    = persp_height(obs_type[i], obs_depth[i]);
     end
   end
 
   always_comb begin
     pixel_hit = 4'd0;
     for (int i = 0; i < NUM_OBS; i++) begin
-      if (active[i] &&
-          col >= (obs_cx[i] - OBS_HALF_W) && col < (obs_cx[i] + OBS_HALF_W) &&
-          row >= obs_y[i] && row < (obs_y[i] + obs_h[i]))
+      if (active[i] && row >= VP_Y && p_obs_hw > 10'd0 &&
+          obs_ph[i] > 10'd0 &&
+          col >= (obs_cx[i] - p_obs_hw) && col < (obs_cx[i] + p_obs_hw) &&
+          row >= obs_y[i] && row < (obs_y[i] + obs_ph[i]))
         pixel_hit[i] = 1'b1;
     end
   end

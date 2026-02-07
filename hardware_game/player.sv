@@ -139,15 +139,37 @@ module player
   // Player Y: feet position minus jump offset
   assign player_y = FEET_Y - jump_offset;
 
-  // ---- Pixel Rendering ----
-  logic [9:0] draw_h, draw_top, half_w;
+  // ---- 3D Perspective for Pixel Rendering ----
+  localparam [9:0] VP_X_P = 10'd400;
+  localparam [9:0] VP_Y_P = 10'd88;
+
+  logic [9:0] p_depth;
+  assign p_depth = (row >= VP_Y_P) ? (row - VP_Y_P) : 10'd0;
+
+  // Perspective player centre at current scanline
+  logic [9:0] persp_px;
+  always_comb begin
+    case (lane)
+      2'd0:    persp_px = VP_X_P - (p_depth >> 1);
+      2'd1:    persp_px = VP_X_P;
+      2'd2:    persp_px = VP_X_P + (p_depth >> 1);
+      default: persp_px = VP_X_P;
+    endcase
+  end
+
+  // Perspective half-width: ≈20/512 * depth → ~20px at player y
+  logic [9:0] persp_hw;
+  assign persp_hw = (p_depth >> 5) + (p_depth >> 6) + (p_depth >> 7);
+
+  // ---- Pixel Rendering (perspective-adjusted) ----
+  logic [9:0] draw_h, draw_top;
   assign draw_h   = is_sliding ? SLIDE_H : PLAYER_H;
   assign draw_top  = player_y - draw_h;
-  assign half_w    = PLAYER_W >> 1;  // 20
 
   logic in_x, in_y, in_head_y;
 
-  assign in_x = (col >= player_x - half_w) && (col < player_x + half_w);
+  assign in_x = (row >= VP_Y_P) && (persp_hw > 10'd0) &&
+                (col >= persp_px - persp_hw) && (col < persp_px + persp_hw);
   assign in_y = (row >= draw_top) && (row < player_y);
   assign in_head_y = (row >= draw_top) && (row < draw_top + HEAD_H);
 

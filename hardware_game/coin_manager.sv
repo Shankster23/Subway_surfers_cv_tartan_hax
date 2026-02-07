@@ -126,22 +126,49 @@ module coin_manager
     end
   end
 
-  // ---- Pixel Rendering (combinational) ----
-  logic [9:0] coin_cx [4];
+  // ---- 3D Perspective for Pixel Rendering ----
+  localparam [9:0] VP_X = 10'd400;
+  localparam [9:0] VP_Y = 10'd88;
+
+  logic [9:0] p_depth;
+  assign p_depth = (row >= VP_Y) ? (row - VP_Y) : 10'd0;
+
+  // Perspective coin half-width: ≈9/512 * depth → ~7px at player y
+  logic [9:0] p_coin_hw;
+  assign p_coin_hw = (p_depth >> 6) + (p_depth >> 8);
+
+  // Perspective lane centre at current scanline
+  function automatic [9:0] persp_lane_x(input [1:0] l, input [9:0] d);
+    case (l)
+      2'd0:    persp_lane_x = VP_X - (d >> 1);
+      2'd1:    persp_lane_x = VP_X;
+      2'd2:    persp_lane_x = VP_X + (d >> 1);
+      default: persp_lane_x = VP_X;
+    endcase
+  endfunction
+
+  // ---- Pixel Rendering (combinational, perspective-adjusted) ----
+  logic [9:0] coin_cx    [4];
+  logic [9:0] coin_depth [4];
+  logic [9:0] coin_ph    [4];   // perspective height
   logic [3:0] pixel_hit;
 
-  // Pre-compute lane centers for each coin
+  // Coin height scales with depth at coin's y position: ≈20/512*d → ~15 at d=392
   always_comb begin
-    for (int i = 0; i < NUM_COINS; i++)
-      coin_cx[i] = get_lane_x(coin_lane[i]);
+    for (int i = 0; i < NUM_COINS; i++) begin
+      coin_cx[i]    = persp_lane_x(coin_lane[i], p_depth);
+      coin_depth[i] = (coin_y[i] >= VP_Y) ? (coin_y[i] - VP_Y) : 10'd0;
+      coin_ph[i]    = (coin_depth[i] >> 5) + (coin_depth[i] >> 7);
+    end
   end
 
   always_comb begin
     pixel_hit = 4'd0;
     for (int i = 0; i < NUM_COINS; i++) begin
-      if (active[i] &&
-          col >= (coin_cx[i] - COIN_HALF) && col < (coin_cx[i] + COIN_HALF) &&
-          row >= coin_y[i] && row < (coin_y[i] + 10'd14))
+      if (active[i] && row >= VP_Y && p_coin_hw > 10'd0 &&
+          coin_ph[i] > 10'd0 &&
+          col >= (coin_cx[i] - p_coin_hw) && col < (coin_cx[i] + p_coin_hw) &&
+          row >= coin_y[i] && row < (coin_y[i] + coin_ph[i]))
         pixel_hit[i] = 1'b1;
     end
   end
