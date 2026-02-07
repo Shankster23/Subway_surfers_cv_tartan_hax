@@ -470,9 +470,9 @@
     <p>Stand where the camera can see your upper body</p>
     <div id="calStep">🧍</div>
     <div id="calInstr">Stand in MIDDLE position</div>
-    <div id="calProgress">
-      <div id="calBar"></div>
-    </div>
+    <div id="calVal" style="font-size:12px;color:#aaa;margin-bottom:10px">Waiting for pose...</div>
+    <button class="b" id="calCapture"
+      style="background:#27ae60;border-color:#2ecc71;color:#fff;margin-bottom:10px">CAPTURE (Space)</button>
     <div id="calBtns">
       <button class="b" id="calSkip" style="width:auto;padding:8px 16px;border-radius:12px;font-size:11px">Skip</button>
       <button class="b" id="calReset"
@@ -499,6 +499,7 @@
     // Computer Vision state
     let cvEnabled = false, cvReady = false, pose = null;
     let cvLane = 1, smoothX = 0.5;
+    let crouchLocked = false; // Prevent continuous crouching
     const video = document.getElementById('cam');
     const poseCanvas = document.getElementById('pose');
     const poseCtx = poseCanvas.getContext('2d');
@@ -520,12 +521,12 @@
     // Calibration - 3 zones: LEFT | MIDDLE | RIGHT
     let calibrated = false, calibrating = false, calStep = 0;
     let calData = { leftX: 0.7, middleX: 0.5, rightX: 0.3 }; // Raw X positions (not mirrored)
-    let calSamples = [], calTimer = 0;
+    let calSamples = [], calTimer = 0, lastCalSample = null;
 
-    // Calibration: step 0=middle, 1=left, 2=right
-    const CAL_STEPS = ['middle', 'left', 'right'];
-    const CAL_ICONS = ['🧍', '👈 🧍', '🧍 👉'];
-    const CAL_INSTRS = ['Stand in MIDDLE', 'Step to YOUR LEFT', 'Step to YOUR RIGHT'];
+    // Calibration: only center position needed
+    const CAL_STEPS = ['middle'];
+    const CAL_ICONS = ['🧍'];
+    const CAL_INSTRS = ['Stand in CENTER position'];
 
     function initCV() {
       cvStatus.textContent = '📷 Initializing...';
@@ -562,6 +563,7 @@
       calStep = 0;
       calSamples = [];
       calTimer = 0;
+      lastCalSample = null;
       calibrateDiv.style.display = 'flex';
       updateCalibrationUI();
       if (calNote) calNote.style.display = 'block';
@@ -590,13 +592,37 @@
 
     document.getElementById('calSkip').onclick = () => {
       // Default: wider zones for easier detection
-      calData = { leftX: 0.72, middleX: 0.5, rightX: 0.28, thresh1: 0.61, thresh2: 0.39 };
+      calData = { leftX: 0.72, middleX: 0.5, rightX: 0.28, thresh1: 0.61, thresh2: 0.39, baseShY: 0.4 };
       finishCalibration();
     };
 
     document.getElementById('calReset').onclick = () => {
       startCalibration();
     };
+
+    function captureCalibrationStep() {
+      if (!calibrating || !lastCalSample) return;
+
+      const { x, y } = lastCalSample;
+
+      // Only capture center position
+      calData.middleX = x;
+      calData.baseShY = y;
+
+      // Auto-calculate left/right with standard offsets
+      calData.leftX = x + 0.22;  // 22% to the left
+      calData.rightX = x - 0.22; // 22% to the right
+
+      // Visual flash or sound could go here
+
+      if (calStep >= 3) {
+        finishCalibration();
+      } else {
+        finishCalibration(); // Changed: always finish after first (center) capture
+      }
+    }
+
+    document.getElementById('calCapture').onclick = captureCalibrationStep;
 
     async function detectPose() {
       if (!cvEnabled || !cvReady) return;
@@ -651,27 +677,19 @@
 
         // Calibration mode
         if (calibrating) {
+          // Visual feedback for manual calibration
           calSamples.push(bodyX);
-          calTimer++;
-          document.getElementById('calBar').style.width = (calTimer / 45 * 100) + '%';
+          while (calSamples.length > 20) calSamples.shift();
 
-          if (calTimer >= 45) {
-            const avg = calSamples.reduce((a, b) => a + b, 0) / calSamples.length;
+          const avg = calSamples.reduce((a, b) => a + b, 0) / (calSamples.length || 1);
+          const variance = calSamples.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / (calSamples.length || 1);
+          const isStable = calSamples.length > 10 && variance < 0.0005;
+          const statusText = isStable ? "✅ Stable - Press CAPTURE" : "Move to position...";
+          document.getElementById('calVal').textContent = `X: ${bodyX.toFixed(2)} | Y: ${shoulderY.toFixed(2)} | ${statusText}`;
+          document.getElementById('calVal').style.color = isStable ? '#2ecc71' : '#aaa';
 
-            if (calStep === 0) calData.middleX = avg;
-            else if (calStep === 1) calData.leftX = avg;
-            else if (calStep === 2) calData.rightX = avg;
-
-            calStep++;
-            calSamples = [];
-            calTimer = 0;
-
-            if (calStep >= 3) {
-              finishCalibration();
-            } else {
-              updateCalibrationUI();
-            }
-          }
+          // Store latest sample for capture
+          lastCalSample = { x: bodyX, y: shoulderY };
           return;
         }
 
@@ -715,23 +733,39 @@
           cvLane = newLane;
         }
 
-        // Arms up = Jump
-        const armsUp = lWrist.y < lShoulder.y - 0.12 && rWrist.y < rShoulder.y - 0.12;
-        // Crouch = Slide
+        // --- PHYSICAL ACTIONS ---
+        // Jump: Shoulders go HIGHER (smaller Y) than baseline
+        const jumpThresh = 0.05;
+        const isJumping = shoulderY < (calData.baseShY - jumpThresh);
+
+        // Crouch: Shoulders go LOWER (larger Y) than baseline OR body scrunch
+        const crouchThresh = 0.15;
         const bodyHeight = hipY - shoulderY;
-        const isCrouching = bodyHeight < 0.2;
+        const isCrouching = (shoulderY > calData.baseShY + crouchThresh) || (bodyHeight < 0.2);
+
+        // Debug logging (remove later)
+        if (st === 'play' && isCrouching) {
+          console.log('Crouch detected!', { shoulderY, baseShY: calData.baseShY, diff: shoulderY - calData.baseShY, crouchLocked, plsl: pl.sl });
+        }
+
+        // Fallback: Arm gestures still work (Arms Up = Jump) if physical jump fails
+        const armsUp = lWrist.y < lShoulder.y - 0.15 && rWrist.y < rShoulder.y - 0.15;
 
         const laneNames = ['◀ LEFT', '● MIDDLE', 'RIGHT ▶'];
         const laneEmoji = ['🔵', '🟢', '🔴'];
 
         if (st === 'play') {
-          if (armsUp && pl.y <= 0) {
+          if ((isJumping || armsUp) && pl.y <= 0) {
             pl.vy = 14;
             cvStatus.textContent = '⬆️ JUMP!';
-          } else if (isCrouching && !pl.sl) {
-            pl.sl = 25;
-            cvStatus.textContent = '⬇️ SLIDE!';
+          } else if (isCrouching) {
+            if (!crouchLocked && !pl.sl) {
+              pl.sl = 25;
+              cvStatus.textContent = '⬇️ SLIDE!';
+              crouchLocked = true; // Lock until user stands up
+            }
           } else {
+            crouchLocked = false; // Reset lock when not crouching
             cvStatus.textContent = laneEmoji[newLane] + ' ' + laneNames[newLane];
           }
         } else {
@@ -768,7 +802,17 @@
       document.getElementById('hscDisplay').textContent = 'BEST: ' + bs.toString().padStart(6, '0');
     });
 
-    onkeydown = e => { ky[e.key] = 1; if (e.key === 'Escape' || e.key === 'p') { st === 'play' ? pause() : st === 'pause' ? resume() : 0 } if (e.key === 'c' && cvEnabled && cvReady) startCalibration(); e.preventDefault() };
+    onkeydown = e => {
+      if (calibrating && e.code === 'Space') {
+        captureCalibrationStep();
+        e.preventDefault();
+        return;
+      }
+      ky[e.key] = 1;
+      if (e.key === 'Escape' || e.key === 'p') { st === 'play' ? pause() : st === 'pause' ? resume() : 0 }
+      if (e.key === 'c' && cvEnabled && cvReady) startCalibration();
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
+    };
     onkeyup = e => ky[e.key] = 0;
     const inp = d => { if (st !== 'play') return; if (d === 'l' && pl.tl > 0) { pl.tl--; pl.lt = 0 } if (d === 'r' && pl.tl < 2) { pl.tl++; pl.lt = 0 } if (d === 'u' && pl.y <= 0) pl.vy = 14; if (d === 'd' && !pl.sl) pl.sl = 25 };
 
@@ -787,7 +831,8 @@
       '⚠️ IMPORTANT: Computer Vision requires Wi-Fi! If it hangs, REFRESH the page.',
       'CONTROLS: Swipe Left/Right to move, Up to Jump, Down to Crouch.',
       'CV TOGGLE: Click "CV: ON/OFF" (Top Right) to enable/disable camera & body control.',
-      'ACTIONS: Arms Up = Jump. Crouch = Slide. Press C to recalibrate.'
+      'ACTIONS: Jump/Arms Up = JUMP. Crouch/Squat = SLIDE. Recalibrate: Press C.',
+      'CALIBRATION: Stand in position, wait for "Stable", then press SPACE or Click CAPTURE.'
     ];
     let helpIdx = 0;
     function showHelp(i) {
