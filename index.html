@@ -353,6 +353,17 @@ cvToggle.onclick=()=>{
   }
 };
 
+// Auto-start CV on load (before game starts)
+window.addEventListener('load',()=>{
+  if(!cvEnabled){
+    cvEnabled=true;
+    cvToggle.textContent='📷 CV: ON';
+    cvToggle.style.background='rgba(39,174,96,0.3)';
+    cvToggle.style.borderColor='rgba(39,174,96,0.5)';
+    initCV();
+  }
+});
+
 onkeydown=e=>{ky[e.key]=1;if(e.key==='Escape'||e.key==='p'){st==='play'?pause():st==='pause'?resume():0}if(e.key==='c'&&cvEnabled&&cvReady)startCalibration();e.preventDefault()};
 onkeyup=e=>ky[e.key]=0;
 const inp=d=>{if(st!=='play')return;if(d==='l'&&pl.tl>0){pl.tl--;pl.lt=0}if(d==='r'&&pl.tl<2){pl.tl++;pl.lt=0}if(d==='u'&&pl.y<=0)pl.vy=14;if(d==='d'&&!pl.sl)pl.sl=25};
