@@ -9,16 +9,18 @@
 html,body{width:100%;height:100%;overflow:hidden;background:#0a0a12}
 body{display:flex;justify-content:center;align-items:center;font-family:monospace}
 #g{background:#1a1a2e}
-#ui{position:absolute;top:0;left:0;width:100%;padding:12px;display:flex;justify-content:space-between;color:#ffd700;font-size:14px;font-weight:bold;text-shadow:0 0 8px #ffd700}
+#ui{position:absolute;top:0;left:0;width:100%;padding:12px 60px 12px 12px;display:flex;justify-content:space-between;align-items:center;color:#ffd700;font-size:14px;font-weight:bold;text-shadow:0 0 8px #ffd700}
+#scoreWrap{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:130;pointer-events:none}
+#sc{min-width:7ch;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:2px;color:#ffd700;font-size:18px;font-weight:bold;text-shadow:0 0 10px #ffd700}
 #ui>div{display:flex;align-items:center;gap:5px}
 .c{width:14px;height:14px;background:radial-gradient(circle at 30% 30%,#ffe066,#ffd700,#b8860b);border-radius:50%}
 #lv{gap:3px}
 .h{color:#ff4757;font-size:16px}
-#ps{position:absolute;top:10px;right:10px;width:36px;height:36px;border-radius:8px;background:rgba(255,215,0,0.15);border:2px solid rgba(255,215,0,0.3);color:#ffd700;font-size:18px;cursor:pointer;display:none}
+#ps{position:absolute;left:50%;top:calc(50% - var(--gh)/2 + 12px);transform:translateX(calc(var(--gw)/2 - 12px - 36px));width:36px;height:36px;border-radius:8px;background:rgba(255,215,0,0.15);border:2px solid rgba(255,215,0,0.3);color:#ffd700;font-size:18px;cursor:pointer;display:block;z-index:120}
 #pa{position:absolute;display:none;flex-direction:column;align-items:center;gap:16px;color:#fff;background:rgba(10,10,18,0.95);padding:30px;border-radius:16px;border:2px solid #ffd700;z-index:100}
 #pa h2{color:#ffd700;font-size:22px}
 #m,#ov{position:absolute;display:flex;flex-direction:column;align-items:center;gap:16px;color:#fff;text-align:center;z-index:100}
-#m h1{font-size:26px;background:linear-gradient(90deg,#ffd700,#ff6b6b,#ffd700);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+#m h1{font-size:26px;background:linear-gradient(90deg,#ffd700,#ff6b6b,#ffd700);-webkit-background-clip:text;-webkit-text-fill-color:transparent;position:relative;left:20px}
 #m p{color:#888;font-size:11px}
 #st{padding:14px 40px;font-size:16px;font-weight:bold;background:linear-gradient(135deg,#ffd700,#ff8c00);border:none;border-radius:25px;color:#1a1a2e;cursor:pointer}
 #ov{display:none;background:rgba(10,10,18,0.95);padding:30px;border-radius:16px;border:2px solid #ffd700}
@@ -33,7 +35,12 @@ body{display:flex;justify-content:center;align-items:center;font-family:monospac
 #zones{display:flex;width:100%;height:24px;margin-top:4px;border-radius:6px;overflow:hidden}
 .zone{flex:1;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;transition:all 0.15s}
 #cvStatus{padding:8px;text-align:center;color:#ffd700;font-size:11px;background:rgba(0,0,0,0.5);border-radius:6px;margin-top:4px}
-#cvToggle{position:absolute;top:10px;right:52px;padding:8px 12px;border-radius:8px;background:rgba(255,215,0,0.15);border:2px solid rgba(255,215,0,0.3);color:#ffd700;font-size:12px;cursor:pointer;display:none;z-index:100}
+#cvToggle{position:absolute;top:10px;right:102px;padding:8px 12px;border-radius:8px;background:rgba(255,215,0,0.15);border:2px solid rgba(255,215,0,0.3);color:#ffd700;font-size:12px;cursor:pointer;display:none;z-index:100}
+#helpBtn{position:absolute;top:10px;left:60px;padding:8px 12px;border-radius:8px;background:rgba(255,215,0,0.15);border:2px solid rgba(255,215,0,0.3);color:#ffd700;font-size:12px;cursor:pointer;z-index:100}
+#help{position:absolute;display:none;flex-direction:column;align-items:center;gap:12px;color:#fff;background:rgba(10,10,18,0.98);padding:24px;border-radius:16px;border:2px solid #ffd700;z-index:150;max-width:320px;text-align:center}
+#help h2{color:#ffd700;font-size:20px}
+#help p{color:#ddd;font-size:13px;line-height:1.4}
+#helpNav{display:flex;gap:10px;margin-top:4px}
 #calibrate{position:absolute;display:none;flex-direction:column;align-items:center;gap:20px;color:#fff;background:rgba(10,10,18,0.98);padding:40px;border-radius:20px;border:3px solid #ffd700;z-index:200;max-width:350px;text-align:center}
 #calibrate h2{color:#ffd700;font-size:20px}
 #calibrate p{color:#aaa;font-size:13px;line-height:1.5}
@@ -57,12 +64,23 @@ body{display:flex;justify-content:center;align-items:center;font-family:monospac
   <div id="cvStatus">📷 Waiting...</div>
 </div>
 <button id="cvToggle">📷 CV: OFF</button>
-<div id="ui"><div><div class="c"></div><span id="cn">0</span></div><div id="sc">000000</div><div id="lv"></div></div>
+<button id="helpBtn">❓ HELP</button>
+<div id="ui"><div><div class="c"></div><span id="cn">0</span></div><div id="lv"></div></div>
+<div id="scoreWrap"><div id="sc">000000</div></div>
 <div id="m"><h1>🚃 RAIL RUSH 3D 🚃</h1><p>Swipe/arrows OR enable camera!<br>🏃 Stand Left/Middle/Right to control<br>🙆 Arms Up = Jump • 🧎 Crouch = Slide</p><button id="st">TAP TO PLAY</button><div id="calNote" style="font-size:11px;color:#aaa;display:none;margin-top:6px">Finish calibration to start</div></div>
 <div id="ov"><h2>💥 BUSTED!</h2><div id="fn">0</div><div id="hsc">Best: 0</div><button class="b" id="rt" style="width:auto;padding:10px 28px;border-radius:16px">RETRY</button></div>
 <button id="ps">⏸</button>
 <div id="pa"><h2>⏸ PAUSED</h2><button class="b" id="rs" style="width:auto;padding:10px 28px;border-radius:16px">RESUME</button><button class="b" id="qt" style="width:auto;padding:10px 28px;border-radius:16px;background:rgba(255,70,70,0.2);border-color:rgba(255,70,70,0.4);color:#ff4757">QUIT</button></div>
 <div class="ct"><button class="b" id="bl">◀</button><button class="b" id="bu">▲</button><button class="b" id="bd">▼</button><button class="b" id="br">▶</button></div>
+<div id="help">
+  <h2>How to Play</h2>
+  <p id="helpText">Swipe/arrows: Left/Right to change lanes, Up to jump, Down to slide.</p>
+  <div id="helpNav">
+    <button class="b" id="helpPrev" style="width:auto;padding:8px 16px;border-radius:12px;font-size:11px">Prev</button>
+    <button class="b" id="helpNext" style="width:auto;padding:8px 16px;border-radius:12px;font-size:11px">Next</button>
+    <button class="b" id="helpClose" style="width:auto;padding:8px 16px;border-radius:12px;font-size:11px">Close</button>
+  </div>
+</div>
 
 <!-- Calibration Modal -->
 <div id="calibrate">
@@ -85,7 +103,7 @@ body{display:flex;justify-content:center;align-items:center;font-family:monospac
 <script>
 const C=document.getElementById('g'),X=C.getContext('2d'),W=400,H=650;
 C.width=W;C.height=H;
-onresize=()=>{const r=W/H,wr=innerWidth/innerHeight;let w,h;if(wr>r){h=innerHeight;w=h*r}else{w=innerWidth;h=w/r}C.style.width=w+'px';C.style.height=h+'px'};onresize();
+onresize=()=>{const r=W/H,wr=innerWidth/innerHeight;let w,h;if(wr>r){h=innerHeight;w=h*r}else{w=innerWidth;h=w/r}C.style.width=w+'px';C.style.height=h+'px';document.documentElement.style.setProperty('--gw',w+'px');document.documentElement.style.setProperty('--gh',h+'px')};onresize();
 
 const D=300,GY=550,HY=200,LN=[-80,0,80];
 const pj=(x,y,z)=>{const s=D/(z+D);return{x:W/2+x*s,y:HY+(GY-HY-y)*s,s}};
@@ -107,6 +125,12 @@ const calibrateDiv=document.getElementById('calibrate');
 const zoneL=document.getElementById('zL');
 const zoneC=document.getElementById('zC');
 const zoneR=document.getElementById('zR');
+const helpBtn=document.getElementById('helpBtn');
+const help=document.getElementById('help');
+const helpText=document.getElementById('helpText');
+const helpPrev=document.getElementById('helpPrev');
+const helpNext=document.getElementById('helpNext');
+const helpClose=document.getElementById('helpClose');
 
 // Calibration - 3 zones: LEFT | MIDDLE | RIGHT
 let calibrated=false,calibrating=false,calStep=0;
@@ -377,6 +401,24 @@ document.getElementById('bu').onclick=()=>inp('u');document.getElementById('bd')
 document.getElementById('st').onclick=go;document.getElementById('rt').onclick=go;
 document.getElementById('ps').onclick=pause;document.getElementById('rs').onclick=resume;
 document.getElementById('qt').onclick=()=>{st='menu';document.getElementById('pa').style.display='none';document.getElementById('ps').style.display='none';document.getElementById('m').style.display='flex';cvToggle.style.display='none'};
+
+// Help/instructions
+const helpSteps=[
+  'Swipe/arrows: Left/Right to change lanes, Up to jump, Down to slide.',
+  'Avoid obstacles and collect coins to score points.',
+  'Enable CV to control with your body: stand Left/Middle/Right.',
+  'Arms up = Jump. Crouch = Slide. Press C to recalibrate CV.'
+];
+let helpIdx=0;
+function showHelp(i){
+  helpIdx=(i+helpSteps.length)%helpSteps.length;
+  helpText.textContent=helpSteps[helpIdx];
+  help.style.display='flex';
+}
+helpBtn.onclick=()=>showHelp(0);
+helpPrev.onclick=()=>showHelp(helpIdx-1);
+helpNext.onclick=()=>showHelp(helpIdx+1);
+helpClose.onclick=()=>{help.style.display='none';};
 
 function go(){
   if(cvEnabled&&!calibrated){
